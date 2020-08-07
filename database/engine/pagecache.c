@@ -415,9 +415,7 @@ uint8_t pg_cache_punch_hole(struct rrdengine_instance *ctx, struct rrdeng_page_d
     if (unlikely(0 == ret)) {
         uv_rwlock_wrunlock(&page_index->lock);
         error("Page under deletion was not in index.");
-        if (unlikely(debug_flags & D_RRDENGINE)) {
-            print_page_descr(descr);
-        }
+        print_page_descr(descr);
         goto destroy;
     }
     --page_index->page_count;
@@ -440,9 +438,9 @@ uint8_t pg_cache_punch_hole(struct rrdengine_instance *ctx, struct rrdeng_page_d
     if (!is_exclusive_holder) {
         /* If we don't hold an exclusive page reference get one */
         while (!pg_cache_try_get_unsafe(descr, 1)) {
-            debug(D_RRDENGINE, "%s: Waiting for locked page:", __func__);
-            if (unlikely(debug_flags & D_RRDENGINE))
-                print_page_cache_descr(descr);
+            info("%s: Waiting for locked page:", __func__);
+            print_page_cache_descr(descr);
+            metalog_print_dimension_by_uuid(ctx->metalog_ctx, metric_id);
             pg_cache_wait_event_unsafe(descr);
         }
     }
@@ -451,9 +449,9 @@ uint8_t pg_cache_punch_hole(struct rrdengine_instance *ctx, struct rrdeng_page_d
     } else {
         /* even a locked page could be dirty */
         while (unlikely(pg_cache_descr->flags & RRD_PAGE_DIRTY)) {
-            debug(D_RRDENGINE, "%s: Found dirty page, waiting for it to be flushed:", __func__);
-            if (unlikely(debug_flags & D_RRDENGINE))
-                print_page_cache_descr(descr);
+            info("%s: Found dirty page, waiting for it to be flushed:", __func__);
+            print_page_cache_descr(descr);
+            metalog_print_dimension_by_uuid(ctx->metalog_ctx, metric_id);
             pg_cache_wait_event_unsafe(descr);
         }
     }

@@ -25,7 +25,7 @@ void print_page_cache_descr(struct rrdeng_page_descr *descr)
     }
 
     snprintfz(str + pos, BUFSIZE - pos, " flags:0x%2.2lX refcnt:%u\n\n", pg_cache_descr->flags, pg_cache_descr->refcnt);
-    debug(D_RRDENGINE, "%s", str);
+    info("%s", str);
 }
 
 void print_page_descr(struct rrdeng_page_descr *descr)

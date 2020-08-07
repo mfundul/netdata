@@ -429,6 +429,41 @@ void metalog_delete_dimension_by_uuid(struct metalog_instance *ctx, uuid_t *metr
     }
 }
 
+/* This function is called by dbengine rotation logic when the metric has no writers */
+void metalog_print_dimension_by_uuid(struct metalog_instance *ctx, uuid_t *metric_uuid)
+{
+    RRDDIM *rd;
+    RRDSET *st;
+    RRDHOST *host;
+
+    if (!ctx || !ctx->initialized)
+        return;
+
+    rd = metalog_get_dimension_from_uuid(ctx, metric_uuid);
+    if (!rd) { /* in 8the case of legacy UUID convert to multihost and try again */
+        // TODO: Check what to do since we have no host
+        uuid_t multihost_uuid;
+
+        rrdeng_convert_legacy_uuid_to_multihost(ctx->rrdeng_ctx->machine_guid, metric_uuid, &multihost_uuid);
+        rd = metalog_get_dimension_from_uuid(ctx, &multihost_uuid);
+    }
+    if(!rd) {
+        error_with_guid(metric_uuid, "Rotated unknown archived metric.");
+        return;
+    }
+    st = rd->rrdset;
+    host = st->rrdhost;
+
+    error_with_guid(metric_uuid, "Host - Chart - Dimension are the below:");
+    info("%s %s %s.", host->hostname, st->id, rd->id);
+
+    /* In case there are active metrics in a different database engine do not delete the dimension object */
+    if (unlikely(host->rrd_memory_mode != RRD_MEMORY_MODE_DBENGINE))
+        error_with_guid(metric_uuid, "uuid does not belong to RRD_MEMORY_MODE_DBENGINE.");
+
+}
+
+
 /*
  * Returns 0 on success, negative on error
  */
