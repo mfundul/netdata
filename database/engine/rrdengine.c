@@ -107,8 +107,8 @@ after_crc_check:
             /* care, we don't hold the descriptor mutex */
             if (!uuid_compare(*(uuid_t *) header->descr[j].uuid, *descr->id) &&
                 header->descr[j].page_length == descr->page_length &&
-                header->descr[j].start_time == descr->start_time &&
-                header->descr[j].end_time == descr->end_time) {
+                header->descr[j].start_time == descr->start_time * USEC_PER_SEC &&
+                header->descr[j].end_time == descr->end_time * USEC_PER_SEC) {
                 break;
             }
             page_offset += header->descr[j].page_length;
@@ -518,8 +518,8 @@ static int do_flush_pages(struct rrdengine_worker_config* wc, int force, struct 
         header->descr[i].type = PAGE_METRICS;
         uuid_copy(*(uuid_t *)header->descr[i].uuid, *descr->id);
         header->descr[i].page_length = descr->page_length;
-        header->descr[i].start_time = descr->start_time;
-        header->descr[i].end_time = descr->end_time;
+        header->descr[i].start_time = descr->start_time * USEC_PER_SEC;
+        header->descr[i].end_time = descr->end_time * USEC_PER_SEC;
         pos += sizeof(header->descr[i]);
     }
     for (i = 0 ; i < count ; ++i) {

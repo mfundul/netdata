@@ -290,7 +290,7 @@ void rrdeng_store_metric_next(RRDDIM *rd, usec_t point_in_time, storage_number n
         rd->rrdset->rrddim_page_alignment = descr->page_length;
     if (unlikely(INVALID_TIME == descr->start_time)) {
         unsigned long new_metric_API_producers, old_metric_API_max_producers, ret_metric_API_max_producers;
-        descr->start_time = point_in_time;
+        descr->start_time = point_in_time / USEC_PER_SEC;
 
         new_metric_API_producers = rrd_atomic_add_fetch(&ctx->stats.metric_API_producers, 1);
         while (unlikely(new_metric_API_producers > (old_metric_API_max_producers = ctx->metric_API_max_producers))) {
@@ -442,7 +442,7 @@ unsigned rrdeng_variable_step_boundaries(RRDSET *st, time_t start_time, time_t e
         page_entries = curr->page_length / sizeof(storage_number);
         fatal_assert(0 != page_entries);
         if (likely(1 != page_entries)) {
-            dt = (curr->end_time - curr->start_time) / (page_entries - 1);
+            dt = (curr->end_time - curr->start_time) * USEC_PER_SEC / (page_entries - 1);
             *pginfo_to_dt(curr) = ROUND_USEC_TO_SEC(dt);
             if (unlikely(0 == *pginfo_to_dt(curr)))
                 *pginfo_to_dt(curr) = 1;
@@ -455,7 +455,7 @@ unsigned rrdeng_variable_step_boundaries(RRDSET *st, time_t start_time, time_t e
             is_metric_earlier_than_range = 0;
             is_metric_out_of_order = 0;
 
-            current_position_time = curr->start_time + j * dt;
+            current_position_time = curr->start_time * USEC_PER_SEC + j * dt;
             now = current_position_time / USEC_PER_SEC;
             if (now > end_time) { /* there will be no more pages in the time range */
                 break;
@@ -478,7 +478,7 @@ unsigned rrdeng_variable_step_boundaries(RRDSET *st, time_t start_time, time_t e
             if (unlikely(!is_first_region_initialized)) {
                 fatal_assert(1 == regions);
                 /* this is the first region */
-                region_info_array[0].start_time = current_position_time;
+                region_info_array[0].start_time = current_position_time / USEC_PER_SEC;
                 is_first_region_initialized = 1;
             }
         }
@@ -497,7 +497,7 @@ unsigned rrdeng_variable_step_boundaries(RRDSET *st, time_t start_time, time_t e
                 struct rrdeng_page_info db_page_info;
 
                 /* go to database */
-                pg_cache_get_filtered_info_prev(ctx, page_index, curr->start_time,
+                pg_cache_get_filtered_info_prev(ctx, page_index, curr->start_time * USEC_PER_SEC,
                                                 metrics_with_known_interval, &db_page_info);
                 if (unlikely(db_page_info.start_time == INVALID_TIME || db_page_info.end_time == INVALID_TIME ||
                              0 == db_page_info.page_length)) { /* nothing in the database, default to update_every */
@@ -507,7 +507,7 @@ unsigned rrdeng_variable_step_boundaries(RRDSET *st, time_t start_time, time_t e
                     usec_t db_dt;
 
                     db_entries = db_page_info.page_length / sizeof(storage_number);
-                    db_dt = (db_page_info.end_time - db_page_info.start_time) / (db_entries - 1);
+                    db_dt = ((db_page_info.end_time - db_page_info.start_time) * USEC_PER_SEC) / (db_entries - 1);
                     *pginfo_to_dt(curr) = ROUND_USEC_TO_SEC(db_dt);
                     if (unlikely(0 == *pginfo_to_dt(curr)))
                         *pginfo_to_dt(curr) = 1;
@@ -520,7 +520,7 @@ unsigned rrdeng_variable_step_boundaries(RRDSET *st, time_t start_time, time_t e
                  *pginfo_to_dt(prev), *pginfo_to_dt(curr));
             region_info_array[regions++ - 1].points -= page_points;
             region_info_array[regions - 1].points = region_points = page_points;
-            region_info_array[regions - 1].start_time = first_valid_time_in_page;
+            region_info_array[regions - 1].start_time = first_valid_time_in_page / USEC_PER_SEC;
         }
         if (*pginfo_to_dt(curr) > max_interval)
             max_interval = *pginfo_to_dt(curr);
@@ -623,11 +623,12 @@ storage_number rrdeng_load_metric_next(struct rrddim_query_handle *rrdimm_handle
                      INVALID_TIME == page_end_time)) {
             goto no_more_metrics;
         }
-        if (unlikely(descr->start_time != page_end_time && next_page_time > descr->start_time)) {
+        if (unlikely(descr->start_time * USEC_PER_SEC != page_end_time &&
+                     next_page_time > descr->start_time * USEC_PER_SEC)) {
             /* we're in the middle of the page somewhere */
             entries = page_length / sizeof(storage_number);
-            position = ((uint64_t)(next_page_time - descr->start_time)) * (entries - 1) /
-                       (page_end_time - descr->start_time);
+            position = ((uint64_t)(next_page_time - descr->start_time * USEC_PER_SEC)) * (entries - 1) /
+                       (page_end_time - descr->start_time * USEC_PER_SEC);
         } else {
             position = 0;
         }
@@ -638,10 +639,10 @@ storage_number rrdeng_load_metric_next(struct rrddim_query_handle *rrdimm_handle
     if (entries > 1) {
         usec_t dt;
 
-        dt = (page_end_time - descr->start_time) / (entries - 1);
-        current_position_time = descr->start_time + position * dt;
+        dt = (page_end_time - descr->start_time * USEC_PER_SEC) / (entries - 1);
+        current_position_time = descr->start_time * USEC_PER_SEC + position * dt;
     } else {
-        current_position_time = descr->start_time;
+        current_position_time = descr->start_time * USEC_PER_SEC;
     }
     handle->position = position;
     handle->now = current_position_time / USEC_PER_SEC;

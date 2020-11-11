@@ -325,8 +325,8 @@ static void restore_extent_metadata(struct rrdengine_instance *ctx, struct rrden
 
         descr = pg_cache_create_descr();
         descr->page_length = jf_metric_data->descr[i].page_length;
-        descr->start_time = jf_metric_data->descr[i].start_time;
-        descr->end_time = jf_metric_data->descr[i].end_time;
+        descr->start_time = jf_metric_data->descr[i].start_time / USEC_PER_SEC;
+        descr->end_time = jf_metric_data->descr[i].end_time / USEC_PER_SEC;
         descr->id = &page_index->id;
         descr->extent = extent;
         extent->pages[valid_pages++] = descr;

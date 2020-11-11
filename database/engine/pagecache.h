@@ -58,18 +58,18 @@ struct rrdeng_page_descr {
     volatile unsigned long pg_cache_descr_state;
 
     /* page information */
-    usec_t start_time;
-    usec_t end_time;
-    uint32_t page_length;
+    uint32_t start_time; /* in seconds */
+    uint32_t end_time; /* in seconds */
+    uint16_t page_length;
 };
 
 #define PAGE_INFO_SCRATCH_SZ (8)
 struct rrdeng_page_info {
     uint8_t scratch[PAGE_INFO_SCRATCH_SZ]; /* scratch area to be used by page-cache users */
 
-    usec_t start_time;
-    usec_t end_time;
-    uint32_t page_length;
+    uint32_t start_time; /* in seconds */
+    uint32_t end_time; /* in seconds */
+    uint16_t page_length;
 };
 
 /* returns 1 for success, 0 for failure */
@@ -199,19 +199,19 @@ static inline void
     if (NULL == descr->extent) {
         /* this page is currently being modified, get consistent info locklessly */
         do {
-            end_time = descr->end_time;
+            end_time = descr->end_time * USEC_PER_SEC;
             __sync_synchronize();
             old_end_time = end_time;
             page_length = descr->page_length;
             __sync_synchronize();
-            end_time = descr->end_time;
+            end_time = descr->end_time * USEC_PER_SEC;
             __sync_synchronize();
         } while ((end_time != old_end_time || (end_time & 1) != 0));
 
         *end_timep = end_time;
         *page_lengthp = page_length;
     } else {
-        *end_timep = descr->end_time;
+        *end_timep = descr->end_time * USEC_PER_SEC;
         *page_lengthp = descr->page_length;
     }
 }
@@ -219,13 +219,13 @@ static inline void
 /* The caller must hold a reference to the page and must have already set the new data */
 static inline void pg_cache_atomic_set_pg_info(struct rrdeng_page_descr *descr, usec_t end_time, uint32_t page_length)
 {
-    fatal_assert(!(end_time & 1));
-    __sync_synchronize();
-    descr->end_time |= 1; /* mark start of uncertainty period by adding 1 microsecond */
+//    fatal_assert(!(end_time & 1));
+//    __sync_synchronize();
+//    descr->end_time |= 1; /* mark start of uncertainty period by adding 1 microsecond */
     __sync_synchronize();
     descr->page_length = page_length;
     __sync_synchronize();
-    descr->end_time = end_time; /* mark end of uncertainty period */
+    descr->end_time = end_time / USEC_PER_SEC; /* mark end of uncertainty period */
 }
 
 #endif /* NETDATA_PAGECACHE_H */

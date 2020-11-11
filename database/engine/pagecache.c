@@ -429,7 +429,7 @@ uint8_t pg_cache_punch_hole(struct rrdengine_instance *ctx, struct rrdeng_page_d
     uv_rwlock_rdunlock(&pg_cache->metrics_index.lock);
 
     uv_rwlock_wrlock(&page_index->lock);
-    ret = JudyLDel(&page_index->JudyL_array, (Word_t)(descr->start_time / USEC_PER_SEC), PJE0);
+    ret = JudyLDel(&page_index->JudyL_array, (Word_t)(descr->start_time), PJE0);
     if (unlikely(0 == ret)) {
         uv_rwlock_wrunlock(&page_index->lock);
         error("Page under deletion was not in index.");
@@ -502,8 +502,8 @@ static inline int is_page_in_time_range(struct rrdeng_page_descr *descr, usec_t 
 {
     usec_t pg_start, pg_end;
 
-    pg_start = descr->start_time;
-    pg_end = descr->end_time;
+    pg_start = descr->start_time * USEC_PER_SEC;
+    pg_end = descr->end_time * USEC_PER_SEC;
 
     return (pg_start < start_time && pg_end >= start_time) ||
            (pg_start >= start_time && pg_start <= end_time);
@@ -511,7 +511,7 @@ static inline int is_page_in_time_range(struct rrdeng_page_descr *descr, usec_t 
 
 static inline int is_point_in_time_in_page(struct rrdeng_page_descr *descr, usec_t point_in_time)
 {
-    return (point_in_time >= descr->start_time && point_in_time <= descr->end_time);
+    return (point_in_time >= descr->start_time * USEC_PER_SEC && point_in_time <= descr->end_time * USEC_PER_SEC);
 }
 
 /* The caller must hold the page index lock */
@@ -549,11 +549,11 @@ void pg_cache_add_new_metric_time(struct pg_cache_page_index *page_index, struct
     usec_t oldest_time = page_index->oldest_time;
     usec_t latest_time = page_index->latest_time;
 
-    if (unlikely(oldest_time == INVALID_TIME || descr->start_time < oldest_time)) {
-        page_index->oldest_time = descr->start_time;
+    if (unlikely(oldest_time == INVALID_TIME || descr->start_time * USEC_PER_SEC < oldest_time)) {
+        page_index->oldest_time = descr->start_time * USEC_PER_SEC;
     }
-    if (likely(descr->end_time > latest_time || latest_time == INVALID_TIME)) {
-        page_index->latest_time = descr->end_time;
+    if (likely(descr->end_time * USEC_PER_SEC > latest_time || latest_time == INVALID_TIME)) {
+        page_index->latest_time = descr->end_time * USEC_PER_SEC;
     }
 }
 
@@ -572,13 +572,13 @@ void pg_cache_update_metric_times(struct pg_cache_page_index *page_index)
     firstPValue = JudyLFirst(page_index->JudyL_array, &firstIndex, PJE0);
     if (likely(NULL != firstPValue)) {
         descr = *firstPValue;
-        oldest_time = descr->start_time;
+        oldest_time = descr->start_time * USEC_PER_SEC;
     }
     lastIndex = (Word_t)-1;
     lastPValue = JudyLLast(page_index->JudyL_array, &lastIndex, PJE0);
     if (likely(NULL != lastPValue)) {
         descr = *lastPValue;
-        latest_time = descr->end_time;
+        latest_time = descr->end_time * USEC_PER_SEC;
     }
     uv_rwlock_rdunlock(&page_index->lock);
 
@@ -623,7 +623,7 @@ void pg_cache_insert(struct rrdengine_instance *ctx, struct pg_cache_page_index 
     }
 
     uv_rwlock_wrlock(&page_index->lock);
-    PValue = JudyLIns(&page_index->JudyL_array, (Word_t)(descr->start_time / USEC_PER_SEC), PJE0);
+    PValue = JudyLIns(&page_index->JudyL_array, (Word_t)(descr->start_time), PJE0);
     *PValue = descr;
     ++page_index->page_count;
     pg_cache_add_new_metric_time(page_index, descr);
@@ -659,7 +659,7 @@ usec_t pg_cache_oldest_time_in_range(struct rrdengine_instance *ctx, uuid_t *id,
         return INVALID_TIME;
     }
     uv_rwlock_rdunlock(&page_index->lock);
-    return descr->start_time;
+    return descr->start_time * USEC_PER_SEC;
 }
 
 /**
@@ -747,7 +747,7 @@ unsigned pg_cache_preload(struct rrdengine_instance *ctx, uuid_t *id, usec_t sta
         *ret_page_indexp = NULL;
         return 0;
     } else {
-        Index = (Word_t)(descr->start_time / USEC_PER_SEC);
+        Index = (Word_t)(descr->start_time);
     }
     if (page_info_arrayp) {
         page_info_array_max_size = PAGE_CACHE_MAX_PRELOAD_PAGES * sizeof(struct rrdeng_page_info);
